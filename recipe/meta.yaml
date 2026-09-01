@@ -1,41 +1,66 @@
 {% set name = "findlibs" %}
-{% set pypi_name = "findlibs" %}
 {% set version = "0.1.3" %}
 
 package:
-  name: {{ name|lower }}
+  name: {{ name }}
   version: {{ version }}
 
 source:
-  url: https://pypi.org/packages/source/{{ pypi_name[0] }}/{{ pypi_name }}/{{ pypi_name }}-{{ version }}.tar.gz
+  url: https://pypi.org/packages/source/{{ name[0] }}/{{ name }}/{{ name }}-{{ version }}.tar.gz
   sha256: 49bbe509c8b439ecd9c0d021c301aa9db643a2e6ab4e189a40b505ee4a49db62
 
 build:
   number: 0
   noarch: python
-  script: '{{ PYTHON }} -m pip install . --no-deps --ignore-installed -vv '
+  script: {{ PYTHON }} -m pip install . --no-deps --no-build-isolation --ignore-installed -vv
 
 requirements:
   host:
     - pip
-    - python >=3.6
-    - setuptools >=61
-    - setuptools-scm >=8
+    - python >=3.10
+    - setuptools
+    - wheel
   run:
-    - python >=3.6
+    - python >=3.10
+
+{% set deselect_tests = "" %}
+# AssertionError due to / vs \ path separator mismatch on Windows.
+{% set deselect_tests = deselect_tests + " --deselect=tests/test_basic.py::test_find" %}  # [win]
+# ValueError due to Path.is_absolute() misdetecting POSIX paths as relative on Windows.
+{% set deselect_tests = deselect_tests + " --deselect=tests/test_config_file.py::test_no_config_file" %}  # [win]
+{% set deselect_tests = deselect_tests + " --deselect=tests/test_config_file.py::test_empty_config_file" %}  # [win]
+{% set deselect_tests = deselect_tests + " --deselect=tests/test_config_file.py::test_empty_search_paths" %}  # [win]
+{% set deselect_tests = deselect_tests + " --deselect=tests/test_config_file.py::test_config" %}  # [win]
 
 test:
+  imports:
+    - findlibs
+  source_files:
+    - tests
+  requires:
+    - pip
+    - pytest
+    - pyfakefs
   commands:
     - test -f $(python -c "import site; print(site.getsitepackages()[0])")/findlibs/__init__.py  # [not win]
+    - pip check
+    - pytest -v {{ deselect_tests }} tests
 
 about:
   home: https://github.com/ecmwf/findlibs
+  summary: Python package to search for shared libraries on various platforms
   license: Apache-2.0
   license_family: Apache
-  license_file:
-    - LICENSE
-  summary: Python package to search for shared libraries on various platforms
+  license_file: LICENSE
+  description: |
+    findlibs is a small, dependency-free Python package that locates the
+    path of a shared library (e.g. eccodes, eckit, odc) on Linux, macOS
+    and Windows, using a configurable, multi-stage search strategy
+  dev_url: https://github.com/ecmwf/findlibs
+  doc_url: https://github.com/ecmwf/findlibs#README.md
 
 extra:
+  skip-lints:
+    - avoid_noarch
   recipe-maintainers:
     - iainrussell
